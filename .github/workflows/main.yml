@@ -1,7 +1,7 @@
 name: MTS-Auto-Pilot-Bot
 on:
   schedule:
-    - cron: '*/18 * * * *'  # Har 15 min mein check karega
+    - cron: '*/15 * * * *'  # Har 15 min mein check karega
   workflow_dispatch:        # Manual Start ke liye
 
 # 🛡️ Ye line sabse zaruri hai: Ek waqt mein ek hi video banne dega
