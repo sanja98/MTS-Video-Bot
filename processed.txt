@@ -8,3 +8,4 @@ Direction Sense
 Sitting Arrangement
 Non-Verbal Reasoning
 Mathematical Operations
+Missing Number
