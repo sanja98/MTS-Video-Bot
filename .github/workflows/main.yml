@@ -1,39 +1,55 @@
-name: MTS-Video-Bot-Action
+name: MTS-Auto-Pilot-Bot
 on:
-  schedule:
-    - cron: '*/40 * * * *'  # Har 40 minute mein apne aap chalega
-  workflow_dispatch:        # Manual button bhi rahega
+  workflow_dispatch: # Manual Start ke liye
+  repository_dispatch:
+    types: [next_topic] # Self-trigger ke liye custom event
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    # Permission zaroori hai self-trigger ke liye
+    permissions:
+      contents: write
+      actions: write 
+    
     steps:
       - uses: actions/checkout@v3
+      
       - name: Setup Python
         uses: actions/setup-python@v4
         with: {python-version: '3.10'}
       
-      - name: Install System Dependencies
+      - name: Install Tools
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
-          
-      - name: Install Python Packages
-        run: |
           pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow scipy
-          
+      
       - name: Run Script
         env:
           KEY1: ${{ secrets.KEY1 }}
           KEY2: ${{ secrets.KEY2 }}
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           USER_ID: ${{ secrets.USER_ID }}
-        run: python script.py
+        run: python -u script.py  # -u se live progress dikhegi
         
-      - name: Commit Progress
+      - name: Save Progress and Trigger Next
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Ye GitHub khud deta hai
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add processed.txt
-          git commit -m "Update processed topics" || exit 0
+          git commit -m "Next topic processed" || exit 0
           git push
           
+          # 🚀 Ye hai asli Jadu: Agar abhi topics baaki hain, toh naya workflow start karo
+          # Hum 1 minute ka gap denge taaki API thodi thandi rahe
+          sleep 60
+          curl -X POST -H "Authorization: Bearer $GH_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.telegram.org/bot${{ secrets.TG_TOKEN }}/sendMessage -d chat_id=${{ secrets.USER_ID }} -d text="⏳ Next video starting in 1 minute..."
+          
+          curl -X POST -H "Authorization: Bearer $GH_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.telegram.org/repos/${{ github.repository }}/dispatches \
+          -d '{"event_type": "next_topic"}'
