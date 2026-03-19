@@ -1,6 +1,6 @@
 name: MTS-Video-Bot-Action
 on:
-  workflow_dispatch: # Isse tumhe manual "Play" button milega
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -13,7 +13,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
-          pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow
+          pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow scipy
       - name: Run Script
         env:
           KEY1: ${{ secrets.KEY1 }}
