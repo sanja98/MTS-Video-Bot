@@ -1,16 +1,19 @@
 name: MTS-Auto-Pilot-Bot
 on:
-  workflow_dispatch: # Manual Start ke liye
-  repository_dispatch:
-    types: [next_topic] # Self-trigger ke liye custom event
+  schedule:
+    - cron: '*/18 * * * *'  # Har 15 min mein check karega
+  workflow_dispatch:        # Manual Start ke liye
+
+# 🛡️ Ye line sabse zaruri hai: Ek waqt mein ek hi video banne dega
+concurrency:
+  group: mts-video-group
+  cancel-in-progress: false 
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    # Permission zaroori hai self-trigger ke liye
     permissions:
       contents: write
-      actions: write 
     
     steps:
       - uses: actions/checkout@v3
@@ -30,26 +33,12 @@ jobs:
           KEY2: ${{ secrets.KEY2 }}
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           USER_ID: ${{ secrets.USER_ID }}
-        run: python -u script.py  # -u se live progress dikhegi
+        run: python -u script.py
         
-      - name: Save Progress and Trigger Next
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Ye GitHub khud deta hai
+      - name: Commit Progress
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add processed.txt
-          git commit -m "Next topic processed" || exit 0
+          git commit -m "Next topic done" || exit 0
           git push
-          
-          # 🚀 Ye hai asli Jadu: Agar abhi topics baaki hain, toh naya workflow start karo
-          # Hum 1 minute ka gap denge taaki API thodi thandi rahe
-          sleep 60
-          curl -X POST -H "Authorization: Bearer $GH_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.telegram.org/bot${{ secrets.TG_TOKEN }}/sendMessage -d chat_id=${{ secrets.USER_ID }} -d text="⏳ Next video starting in 1 minute..."
-          
-          curl -X POST -H "Authorization: Bearer $GH_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.telegram.org/repos/${{ github.repository }}/dispatches \
-          -d '{"event_type": "next_topic"}'
