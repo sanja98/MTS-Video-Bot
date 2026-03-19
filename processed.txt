@@ -5,3 +5,4 @@ Syllogism
 Venn Diagrams
 Blood Relations
 Direction Sense
+Sitting Arrangement
