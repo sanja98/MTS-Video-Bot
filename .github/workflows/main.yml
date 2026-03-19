@@ -1,6 +1,8 @@
 name: MTS-Video-Bot-Action
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '*/40 * * * *'  # Har 40 minute mein apne aap chalega
+  workflow_dispatch:        # Manual button bhi rahega
 
 jobs:
   run-bot:
@@ -10,10 +12,15 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with: {python-version: '3.10'}
-      - name: Install Dependencies
+      
+      - name: Install System Dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
+          
+      - name: Install Python Packages
+        run: |
           pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow scipy
+          
       - name: Run Script
         env:
           KEY1: ${{ secrets.KEY1 }}
@@ -22,3 +29,11 @@ jobs:
           USER_ID: ${{ secrets.USER_ID }}
         run: python script.py
         
+      - name: Commit Progress
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add processed.txt
+          git commit -m "Update processed topics" || exit 0
+          git push
+          
