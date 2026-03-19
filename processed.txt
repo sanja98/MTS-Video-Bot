@@ -4,3 +4,4 @@ Analogy
 Syllogism
 Venn Diagrams
 Blood Relations
+Direction Sense
