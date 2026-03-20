@@ -69,7 +69,7 @@ def main():
     
     # GK 25 Questions Prompt
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key={KEYS[0]}"
-    prompt = f"Create a strictly formatted JSON array of 25 SSC MTS General Knowledge MCQs for '{topic}'. Keep explanations short. Keys must be: 'question', 'options' (A, B, C, D), 'answer', and 'explanation'. Plain Hinglish. No markdown."
+    prompt = f"Create a strictly formatted JSON array of 25 SSC MTS General Knowledge MCQs for '{topic}'. The 'question', 'options', and 'answer' MUST be in English. The 'explanation' should be in simple English. Keys must be: 'question', 'options' (A, B, C, D), 'answer', and 'explanation'. No markdown."
     
     try:
         res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}).json()
