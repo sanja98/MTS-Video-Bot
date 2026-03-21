@@ -1,1 +1,6 @@
-
+{
+  "subject": "English",
+  "total_questions": 25,
+  "timer_seconds": 4,
+  "prompt_template": "Create a strictly formatted JSON array of {count} SSC MTS {subject} MCQs for the topic '{topic}'. The questions should focus on Grammar, Vocabulary, or Usage as per the topic. Everything MUST be in English. Provide a short grammatical explanation for the answer. Keys: 'question', 'options' (A,B,C,D), 'answer', 'explanation'. No markdown."
+}
