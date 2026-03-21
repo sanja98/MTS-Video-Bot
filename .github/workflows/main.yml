@@ -2,10 +2,9 @@ name: MTS-Auto-Pilot-Bot
 
 on:
   schedule:
-    - cron: '*/20 * * * *'  # Har 20 minute mein auto-check karega
-  workflow_dispatch:        # Manual "Run Workflow" button ke liye
+    - cron: '*/20 * * * *'  # Har 20 minute mein chalega
+  workflow_dispatch:        
 
-# 🛡️ Concurrency ensure karti hai ki ek waqt mein ek hi video render ho
 concurrency:
   group: mts-video-group
   cancel-in-progress: false 
@@ -17,7 +16,6 @@ jobs:
       contents: write
     
     steps:
-      # 1. Pehle Tools install karo (Efficiency ke liye)
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -28,14 +26,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
           pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow scipy
 
-      # 2. AB CHECKOUT KARO: Taki jab purana run khatam ho, tabhi naya data download ho
+      # IMPORTANT: Checkout last moment par karo taaki fresh processed.txt mile
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Poori git history leta hai conflicts rokne ke liye
+          fetch-depth: 0
 
-      # 3. Python Script Chalao
-      - name: Run MTS Video Script
+      - name: Run Script
         env:
           KEY1: ${{ secrets.KEY1 }}
           KEY2: ${{ secrets.KEY2 }}
@@ -43,20 +40,21 @@ jobs:
           USER_ID: ${{ secrets.USER_ID }}
         run: python -u script.py
 
-      # 4. Progress Save Karo (Fix: Correct Git Order)
-      - name: Commit & Push Progress
+      - name: Save Progress (Error 128 Fix)
+        if: always() # Video fail bhi ho tab bhi progress save karne ki koshish kare
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          # Pehle changes ko add karo
-          git add processed.txt
+          # 1. Jo changes hue hain unhe stage karo
+          git add processed.txt || exit 0
           
-          # Phir remote se naya data pull karo taaki conflict na ho
+          # 2. Rebase pull: Agar remote par kuch naya hai toh usey pehle le aao
+          # Isse Error 128 (Rejected) khatam ho jata hai
           git pull origin main --rebase
           
-          # Ab commit karo (Agar kuch change hua hai toh hi)
-          git commit -m "Next topic processed: ${GITHUB_RUN_NUMBER}" || exit 0
+          # 3. Commit changes
+          git commit -m "Auto-Update: Topic Processed" || exit 0
           
-          # Final Push
+          # 4. Push with Retry: Agar fail ho toh phir se pull karke try karega
           git push origin main || (git pull origin main --rebase && git push origin main)
