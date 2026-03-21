@@ -2,9 +2,10 @@ name: MTS-Auto-Pilot-Bot
 
 on:
   schedule:
-    - cron: '*/20 * * * *'  # Har 20 minute mein chalega
-  workflow_dispatch:        
+    - cron: '*/20 * * * *'  # Har 20 minute mein auto-run
+  workflow_dispatch:        # Manual button ke liye
 
+# 🛡️ Concurrency: Ek waqt mein ek hi video, koi takrar nahi
 concurrency:
   group: mts-video-group
   cancel-in-progress: false 
@@ -16,8 +17,9 @@ jobs:
       contents: write
     
     steps:
+      # 1. Setup Python (Updated to v5 for Node.js 24 support)
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -26,13 +28,14 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
           pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow scipy
 
-      # IMPORTANT: Checkout last moment par karo taaki fresh processed.txt mile
+      # 2. Checkout (Updated to v4 for Node.js 24 support)
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run Script
+      # 3. Run MTS Video Script
+      - name: Run MTS Video Script
         env:
           KEY1: ${{ secrets.KEY1 }}
           KEY2: ${{ secrets.KEY2 }}
@@ -40,21 +43,23 @@ jobs:
           USER_ID: ${{ secrets.USER_ID }}
         run: python -u script.py
 
-      - name: Save Progress (Error 128 Fix)
-        if: always() # Video fail bhi ho tab bhi progress save karne ki koshish kare
+      # 4. Save Progress (FIX: Git Stash Logic for Error 128)
+      - name: Save Progress
+        if: always()
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          # 1. Jo changes hue hain unhe stage karo
-          git add processed.txt || exit 0
+          # A. Naye changes ko cupboard (stash) mein chhupao
+          git stash || echo "No changes to stash"
           
-          # 2. Rebase pull: Agar remote par kuch naya hai toh usey pehle le aao
-          # Isse Error 128 (Rejected) khatam ho jata hai
+          # B. GitHub se naya data pull karo (Ab rasta saaf hai)
           git pull origin main --rebase
           
-          # 3. Commit changes
-          git commit -m "Auto-Update: Topic Processed" || exit 0
+          # C. Chhupaye hue changes wapas lao
+          git stash pop || echo "No changes to pop"
           
-          # 4. Push with Retry: Agar fail ho toh phir se pull karke try karega
+          # D. Ab Add, Commit aur Push karo
+          git add processed.txt || exit 0
+          git commit -m "Auto-Update: Next Topic Done" || exit 0
           git push origin main || (git pull origin main --rebase && git push origin main)
