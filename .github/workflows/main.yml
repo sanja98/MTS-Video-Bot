@@ -1,10 +1,9 @@
 name: MTS-Auto-Pilot-Bot
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Har 15 min mein check karega
-  workflow_dispatch:        # Manual Start ke liye
+    - cron: '*/15 * * * *'  # 20 min gap best hai repeat rokne ke liye
+  workflow_dispatch:        
 
-# 🛡️ Ye line sabse zaruri hai: Ek waqt mein ek hi video banne dega
 concurrency:
   group: mts-video-group
   cancel-in-progress: false 
@@ -16,17 +15,21 @@ jobs:
       contents: write
     
     steps:
-      - uses: actions/checkout@v3
-      
+      # 1. Pehle sirf Tools install karo (Bina file download kiye)
       - name: Setup Python
         uses: actions/setup-python@v4
         with: {python-version: '3.10'}
-      
+
       - name: Install Tools
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
           pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow scipy
-      
+
+      # 2. AB CHECKOUT KARO (Jab purana run khatam ho chuka ho)
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Poori history lo taaki conflict na ho
+
       - name: Run Script
         env:
           KEY1: ${{ secrets.KEY1 }}
@@ -35,10 +38,16 @@ jobs:
           USER_ID: ${{ secrets.USER_ID }}
         run: python -u script.py
         
-      - name: Commit Progress
+      - name: Commit & Push Progress
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
+          
+          # Naya data pull karo taaki repeat na ho
+          git pull origin main --rebase
+          
           git add processed.txt
           git commit -m "Next topic done" || exit 0
-          git push
+          
+          # Force push ya retry agar koi aur run beech mein aa jaye
+          git push origin main || (git pull origin main --rebase && git push origin main)
