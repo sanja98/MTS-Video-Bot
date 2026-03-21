@@ -1,9 +1,11 @@
 name: MTS-Auto-Pilot-Bot
+
 on:
   schedule:
-    - cron: '*/15 * * * *'  # 20 min gap best hai repeat rokne ke liye
-  workflow_dispatch:        
+    - cron: '*/20 * * * *'  # Har 20 minute mein auto-check karega
+  workflow_dispatch:        # Manual "Run Workflow" button ke liye
 
+# 🛡️ Concurrency ensure karti hai ki ek waqt mein ek hi video render ho
 concurrency:
   group: mts-video-group
   cancel-in-progress: false 
@@ -15,39 +17,46 @@ jobs:
       contents: write
     
     steps:
-      # 1. Pehle sirf Tools install karo (Bina file download kiye)
+      # 1. Pehle Tools install karo (Efficiency ke liye)
       - name: Setup Python
         uses: actions/setup-python@v4
-        with: {python-version: '3.10'}
+        with:
+          python-version: '3.10'
 
-      - name: Install Tools
+      - name: Install Dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
           pip install edge-tts pydub moviepy==1.0.3 requests numpy Pillow scipy
 
-      # 2. AB CHECKOUT KARO (Jab purana run khatam ho chuka ho)
-      - uses: actions/checkout@v3
+      # 2. AB CHECKOUT KARO: Taki jab purana run khatam ho, tabhi naya data download ho
+      - name: Checkout Repository
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Poori history lo taaki conflict na ho
+          fetch-depth: 0 # Poori git history leta hai conflicts rokne ke liye
 
-      - name: Run Script
+      # 3. Python Script Chalao
+      - name: Run MTS Video Script
         env:
           KEY1: ${{ secrets.KEY1 }}
           KEY2: ${{ secrets.KEY2 }}
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           USER_ID: ${{ secrets.USER_ID }}
         run: python -u script.py
-        
+
+      # 4. Progress Save Karo (Fix: Correct Git Order)
       - name: Commit & Push Progress
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          # Naya data pull karo taaki repeat na ho
+          # Pehle changes ko add karo
+          git add processed.txt
+          
+          # Phir remote se naya data pull karo taaki conflict na ho
           git pull origin main --rebase
           
-          git add processed.txt
-          git commit -m "Next topic done" || exit 0
+          # Ab commit karo (Agar kuch change hua hai toh hi)
+          git commit -m "Next topic processed: ${GITHUB_RUN_NUMBER}" || exit 0
           
-          # Force push ya retry agar koi aur run beech mein aa jaye
+          # Final Push
           git push origin main || (git pull origin main --rebase && git push origin main)
