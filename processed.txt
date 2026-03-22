@@ -10,3 +10,4 @@ Discount and Marked Price
 Simple Interest
 Compound Interest
 Time and Work: Pipe and Cistern
+Speed, Time and Distance
