@@ -5,3 +5,4 @@ Simplification: BODMAS Rule
 Percentages: Concept and Fractions
 Ratio and Proportion
 Average: Age and Numbers
+Profit and Loss: Basic Formulas
