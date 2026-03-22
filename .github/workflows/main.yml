@@ -2,7 +2,7 @@ name: MTS-Auto-Pilot-Bot
 
 on:
   schedule:
-    - cron: '*/20 * * * *'  # Har 20 minute mein auto-run
+    - cron: '*/13 * * * *'  # Har 20 minute mein auto-run
   workflow_dispatch:        # Manual button ke liye
 
 # 🛡️ Concurrency: Ek waqt mein ek hi video, koi takrar nahi
