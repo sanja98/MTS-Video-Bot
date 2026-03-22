@@ -4,3 +4,4 @@ LCM and HCF: Basics and Short Tricks
 Simplification: BODMAS Rule
 Percentages: Concept and Fractions
 Ratio and Proportion
+Average: Age and Numbers
