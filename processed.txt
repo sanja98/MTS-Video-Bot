@@ -11,3 +11,4 @@ Simple Interest
 Compound Interest
 Time and Work: Pipe and Cistern
 Speed, Time and Distance
+Mensuration: 2D Shapes (Area and Perimeter)
