@@ -1,2 +1,3 @@
 
 Number System: Integers and Decimals
+LCM and HCF: Basics and Short Tricks
