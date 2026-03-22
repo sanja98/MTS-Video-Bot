@@ -8,3 +8,4 @@ Average: Age and Numbers
 Profit and Loss: Basic Formulas
 Discount and Marked Price
 Simple Interest
+Compound Interest
