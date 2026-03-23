@@ -6,7 +6,7 @@ on:
     - cron: '0 5,14 * * *' 
   workflow_dispatch: # Manual run button ke liye
 
-# Ek waqt mein ek hi video render hogi
+# Ek waqt mein ek hi video render hogi taaki crash na ho
 concurrency:
   group: mts-video-group
   cancel-in-progress: false 
@@ -18,11 +18,13 @@ jobs:
       contents: write
     
     steps:
+      # Node.js 24 support ke liye v4 use kiya hai
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history zaroori hai rebase ke liye
+          fetch-depth: 0 # Rebase ke liye full history zaroori hai
 
+      # Node.js 24 support ke liye v5 use kiya hai
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -42,23 +44,27 @@ jobs:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
         run: python -u script.py
 
-      # 🛡️ FIXED SAVE PROGRESS (No more Error 128)
+      # 🛡️ SAFE SAVE PROGRESS (Universal Fix for Error 128)
       - name: Save Progress
         if: always()
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          # Faltu files hatao taaki rasta saaf rahe
+          # 1. Faltu aur badi files saaf karo taaki load na pade
           rm -f video.mp4 thumb.jpg thumbnail.jpg tick.wav frame.jpg
           rm -rf temp_audio
           
-          # Changes ko temporary save karo
-          git add processed.txt || echo "No changes to add"
+          # 2. Jo badlav (processed.txt) hue hain unhe cupboard (stash) mein chhupao
+          git stash push --include-untracked || echo "No changes to stash"
           
-          # Pull rebase karo (Conflict avoid karne ke liye)
+          # 3. Naya data bina takrar ke pull karo
           git pull origin main --rebase
           
-          # Commit aur Push
+          # 4. Chhupaye hue badlav wapas nikalo
+          git stash pop || echo "Nothing to pop"
+          
+          # 5. Ab finally add aur push karo
+          git add processed.txt || exit 0
           git commit -m "Auto-Update: Topic Done" || exit 0
-          git push origin main || (git pull origin main --rebase && git push origin main)
+          git push origin main
