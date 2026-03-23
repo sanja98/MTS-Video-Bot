@@ -1,6 +1,1 @@
-{
-  "subject": "Maths",
-  "total_questions": 15,
-  "timer_seconds": 15,
-  "prompt_template": "Create a strictly formatted JSON array of {count} SSC MTS {subject} MCQs for '{topic}'. Keep questions simple and solvable within 30 seconds. Provide a step-by-step short explanation in English. Keys: 'question', 'options' (A,B,C,D), 'answer', 'explanation'. No markdown."
-}
+
