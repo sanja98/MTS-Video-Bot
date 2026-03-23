@@ -1,39 +1,73 @@
-import os, json, subprocess, textwrap, requests, re, time, shutil, numpy as np
+import os, json, requests, random, textwrap, subprocess, time, shutil, re
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from pydub import AudioSegment
 import moviepy.editor as mp
 from scipy.io.wavfile import write
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google.oauth2.credentials import Credentials
 
-# 🔐 Config & Env
+# 🔐 Credentials
 KEYS = [os.environ.get('KEY1'), os.environ.get('KEY2')]
 TG_TOKEN = os.environ.get('TG_TOKEN')
 USER_ID = os.environ.get('USER_ID')
+YT_TOKEN_JSON = os.environ.get('YT_TOKEN_JSON')
 
-# ⚙️ Load External Config
-def load_config():
-    if not os.path.exists('config.json'):
-        return {"subject": "GK", "total_questions": 20, "timer_seconds": 3, "prompt_template": "Create {count} MCQs for {topic}"}
-    with open('config.json', 'r') as f:
-        return json.load(f)
+def load_hybrid_config():
+    # 📝 Agar config.json hai aur usme data hai toh wahi uthayega
+    if os.path.exists('config.json'):
+        with open('config.json', 'r') as f:
+            try:
+                c = json.load(f)
+                if c.get("subject") and c.get("prompt_template"):
+                    print("🛠️ Using Manual Mode from config.json")
+                    return c
+            except: pass
+
+    # 🌍 Warna "Worldwide GK" Mode (Default)
+    print("🚀 Using Auto Mode: Worldwide GK")
+    return {
+        "subject": "World GK",
+        "total_questions": 10,
+        "timer_seconds": 5,
+        "prompt_template": "Create {count} high-quality MCQs for {topic} in English for a global audience. Return ONLY a JSON list of objects with keys: question, options (dict A,B,C,D), answer (letter), explanation, and a viral_title, viral_description."
+    }
+
+def upload_to_youtube(file_path, title, description):
+    try:
+        if not YT_TOKEN_JSON: return
+        creds = Credentials.from_authorized_user_info(json.loads(YT_TOKEN_JSON))
+        youtube = build('youtube', 'v3', credentials=creds)
+        request = youtube.videos().insert(
+            part="snippet,status",
+            body={
+                "snippet": {"title": title, "description": description, "tags": ["GK", "GlobalQuiz", "Facts"], "categoryId": "27"},
+                "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False}
+            },
+            media_body=MediaFileUpload(file_path, chunksize=-1, resumable=True)
+        )
+        request.execute()
+        print("🚀 YouTube Upload Success!")
+    except Exception as e: print(f"❌ YT Error: {e}")
 
 def get_next_topic():
-    if not os.path.exists('topics.txt'): return None
-    with open('topics.txt', 'r') as f:
-        all_topics = [t.strip() for t in f.read().splitlines() if t.strip()]
-    done = []
-    if os.path.exists('processed.txt'):
-        with open('processed.txt', 'r') as f:
-            done = [d.strip() for d in f.read().splitlines() if d.strip()]
-    for t in all_topics:
-        if t not in done: return t
-    return None
+    global_topics = ["Space Mysteries", "Ancient History", "Geography", "Ocean Life", "Mega Structures"]
+    if os.path.exists('topics.txt'):
+        with open('topics.txt', 'r') as f:
+            ts = [t.strip() for t in f.read().splitlines() if t.strip()]
+        if ts:
+            done = open('processed.txt', 'r').read().splitlines() if os.path.exists('processed.txt') else []
+            for t in ts:
+                if t not in done: return t
+    return random.choice(global_topics)
 
 def generate_audio(text, filename, is_exp=False):
     temp = f"raw_{int(time.time()*1000)}.mp3"
-    rate = "-15%" if is_exp else "-2%"
-    res = subprocess.run(['edge-tts', '--voice', 'en-IN-NeerjaNeural', '--text', text, f'--rate={rate}', '--write-media', temp], capture_output=True)
-    if res.returncode == 0 and os.path.exists(temp):
-        AudioSegment.from_file(temp).set_frame_rate(44100).normalize().export(filename, format="mp3")
+    rate = "-12%" if is_exp else "-2%"
+    subprocess.run(['edge-tts', '--voice', 'en-IN-NeerjaNeural', '--text', text, f'--rate={rate}', '--write-media', temp])
+    if os.path.exists(temp):
+        AudioSegment.from_file(temp).export(filename, format="mp3")
         os.remove(temp)
         return True
     return False
@@ -43,88 +77,79 @@ def draw_frame(q, opts, timer=None, ans=None, exp=None, head="", subject="GK"):
     img = Image.new('RGB', (W, H), (15, 23, 42))
     draw = ImageDraw.Draw(img)
     f_p = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
-    if not os.path.exists(f_p): f_p = "arial.ttf"
-    try:
-        f_m = ImageFont.truetype(f_p, 55); f_s = ImageFont.truetype(f_p, 45); f_t = ImageFont.truetype(f_p, 130)
-    except:
-        f_m = f_s = f_t = ImageFont.load_default()
+    f_m = ImageFont.truetype(f_p, 55); f_s = ImageFont.truetype(f_p, 45); f_t = ImageFont.truetype(f_p, 150)
 
-    # Colors
-    header_clr = (255, 193, 7) if subject == "GK" else (100, 255, 218)
+    # UI Design
+    h_clr = (255, 193, 7) if "GK" in subject.upper() else (0, 255, 200)
+    draw.rectangle([0, 0, W, 120], fill=h_clr)
+    draw.text((80, 30), head[:60], fill=(15, 23, 42), font=f_m)
     
-    # 🛠️ FIXED: Full Width Header Box
-    draw.rectangle([0, 0, W, 120], fill=header_clr)
+    draw.text((100, 180), "\n".join(textwrap.wrap(q, 60)), fill=(255, 255, 255), font=f_m)
     
-    # 🛠️ FIXED: Text starts from Left (100px) instead of Center, so it won't cut
-    draw.text((100, 35), head, fill=(15, 23, 42), font=f_m)
-    
-    # Question
-    draw.text((100, 150), "\n".join(textwrap.wrap(q, 65)), fill=(255, 255, 255), font=f_m)
-    
-    y = 380
+    y = 420
     for k in ['A', 'B', 'C', 'D']:
         v = opts.get(k, "N/A")
-        clr = (46, 204, 113) if (ans and k==ans) else (51, 65, 85)
-        draw.rectangle([100, y, 1750, y+85], fill=clr, outline=header_clr, width=3)
-        draw.text((125, y+18), f"{k}) {v}", fill=(255, 255, 255), font=f_s)
-        y += 110
-        
-    if timer: draw.text((1800, 450), str(timer), fill=(255, 80, 80), font=f_t)
-    if exp: draw.text((100, 850), "\n".join(textwrap.wrap(f"💡 {exp}", 80)), fill=(255, 255, 100), font=f_s)
-    
-    img.save("frame.jpg")
-    return "frame.jpg"
+        box_clr = (46, 204, 113) if (ans and k==ans) else (30, 41, 59)
+        draw.rectangle([100, y, 1600, y+90], fill=box_clr, outline=(71, 85, 105), width=2)
+        draw.text((130, y+20), f"{k}) {v}", fill=(255, 255, 255), font=f_s)
+        y += 120
+    if timer: 
+        draw.ellipse([1650, 450, 1850, 650], outline=h_clr, width=5)
+        draw.text((1710, 480), str(timer), fill=h_clr, font=f_t)
+    if exp: 
+        draw.rectangle([100, 880, 1820, 1050], fill=(20, 30, 50), outline=h_clr)
+        draw.text((130, 900), "\n".join(textwrap.wrap(f"💡 Info: {exp}", 80)), fill=(200, 255, 200), font=f_s)
+    img.save("frame.jpg"); return "frame.jpg"
 
 def main():
-    cfg = load_config()
+    cfg = load_hybrid_config()
     topic = get_next_topic()
-    if not topic: print("🎉 Finished!"); return
+    prompt = cfg['prompt_template'].format(count=cfg.get('total_questions', 10), topic=topic, subject=cfg.get('subject', 'GK'))
     
-    prompt = cfg['prompt_template'].format(count=cfg['total_questions'], subject=cfg['subject'], topic=topic)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key={KEYS[0]}"
-    
     try:
-        res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60).json()
-        raw = res['candidates'][0]['content']['parts'][0]['text'].strip().replace("```json", "").replace("```", "")
+        res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}).json()
+        raw = res['candidates'][0]['content']['parts'][0]['text'].replace("```json", "").replace("```", "").strip()
         data = json.loads(raw)
 
         audio_dir = "temp_audio"
         if os.path.exists(audio_dir): shutil.rmtree(audio_dir)
         os.makedirs(audio_dir)
 
-        sr = 44100; t_sfx = np.linspace(0, 0.1, int(sr*0.1), False)
-        write("tick.wav", sr, (np.sin(800*2*np.pi*t_sfx)*32767).astype(np.int16))
+        # Tick sound
+        sr = 44100; t_s = np.linspace(0, 0.1, int(sr*0.1), False)
+        write("tick.wav", sr, (np.sin(1000*2*np.pi*t_s)*32767).astype(np.int16))
         tick = mp.AudioFileClip("tick.wav")
 
         clips = []
         for j, item in enumerate(data, 1):
             q, opt = item.get('question'), item.get('options')
-            if not q or not opt: continue
-            ans, exp = item.get('answer', 'A'), item.get('explanation', 'Important Topic.')
-            h = f"{cfg['subject'].upper()}: {topic.upper()}"
+            ans, exp = item.get('answer', 'A'), item.get('explanation', '')
+            h = f"{cfg.get('subject', 'GK')}: {topic.upper()}"
             
             qa = f"{audio_dir}/q{j}.mp3"
-            if generate_audio(f"Question {j}. {q}", qa):
-                q_aud = mp.AudioFileClip(qa)
-                clips.append(mp.ImageClip(draw_frame(q, opt, head=h, subject=cfg['subject'])).set_duration(q_aud.duration).set_audio(q_aud))
-                for t in range(cfg['timer_seconds'], 0, -1):
-                    clips.append(mp.ImageClip(draw_frame(q, opt, timer=t, head=h, subject=cfg['subject'])).set_duration(1).set_audio(tick))
+            if generate_audio(f"Question {j}: {q}", qa):
+                clips.append(mp.ImageClip(draw_frame(q, opt, head=h, subject=cfg.get('subject', 'GK'))).set_duration(mp.AudioFileClip(qa).duration).set_audio(mp.AudioFileClip(qa)))
+                for t in range(cfg.get('timer_seconds', 5), 0, -1):
+                    clips.append(mp.ImageClip(draw_frame(q, opt, timer=t, head=h, subject=cfg.get('subject', 'GK'))).set_duration(1).set_audio(tick))
                 aa = f"{audio_dir}/a{j}.mp3"
                 if generate_audio(f"Answer {ans}. {exp}", aa, is_exp=True):
-                    a_aud = mp.AudioFileClip(aa)
-                    clips.append(mp.ImageClip(draw_frame(q, opt, ans=ans, exp=exp, head=h, subject=cfg['subject'])).set_duration(a_aud.duration + 1).set_audio(a_aud))
+                    clips.append(mp.ImageClip(draw_frame(q, opt, ans=ans, exp=exp, head=h, subject=cfg.get('subject', 'GK'))).set_duration(mp.AudioFileClip(aa).duration + 1).set_audio(mp.AudioFileClip(aa)))
 
         if clips:
-            out_name = "video.mp4"
-            mp.concatenate_videoclips(clips, method="compose").write_videofile(out_name, fps=24, codec="libx264", preset="ultrafast", logger=None)
-            with open(out_name, 'rb') as v:
-                requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendVideo", data={'chat_id': USER_ID, 'caption': f"📚 {cfg['subject']}: {topic}"}, files={'video': v})
+            final_v = "video.mp4"
+            mp.concatenate_videoclips(clips, method="compose").write_videofile(final_v, fps=24, codec="libx264", logger=None)
+            
+            title = data[0].get('v_title', f"{topic} Quiz")
+            desc = data[0].get('v_desc', f"Explore {topic} in this global GK session.")
+            
+            upload_to_youtube(final_v, title, desc)
+            with open(final_v, 'rb') as v:
+                requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendVideo", data={'chat_id': USER_ID, 'caption': f"📚 {title}"}, files={'video': v})
             with open('processed.txt', 'a') as f: f.write(topic + "\n")
-            print("🏁 Success!")
     except Exception as e: print(f"❌ Error: {e}")
     finally:
         if os.path.exists(audio_dir): shutil.rmtree(audio_dir)
-        if os.path.exists("tick.wav"): os.remove("tick.wav")
 
 if __name__ == "__main__":
     main()
